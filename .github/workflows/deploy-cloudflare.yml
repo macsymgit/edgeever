@@ -1,0 +1,50 @@
+name: Deploy to Cloudflare
+
+# Self-hosted deployment for this fork. Replaces Cloudflare Workers Builds,
+# which is unavailable on this account (error 8000036). Uses `wrangler deploy`
+# via the repo's standard deploy entrypoint.
+#
+# The upstream updater excludes .github/workflows/**, so this file survives
+# "Update deployed EdgeEver" runs.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: edgeever-cloudflare-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.repository != 'tianma-if/edgeever'
+    name: Build and deploy Worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      EDGE_EVER_D1_DATABASE_NAME: edgeever
+      EDGE_EVER_R2_BUCKET_NAME: edgeever-resources
+      EDGE_EVER_DEPLOYMENT_TRIGGER: ${{ github.event_name == 'push' && 'main_push' || 'manual' }}
+      EDGE_EVER_DEPLOYMENT_METHOD: "github_actions"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Deploy Worker
+        run: bun run deploy
